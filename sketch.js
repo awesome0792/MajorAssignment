@@ -1,336 +1,121 @@
-let arcs = []; // Stores information of floating arcs
-let noiseOffset = []; // Stores Perlin noise offset
-let dots = []; // Stores small circles
-let numDots; // Number of small circles
-let arcSpeed = 2; // Speed of arcs falling
+let polies = []; // Variable to store polygon object
+const n = 4; // Number of vertices for the initial polygon (e.g., a square)
+let numLayers = 100; // Number of watercolor layers
+
+function setup() {
+  createCanvas(600, 600); // Sets up a 600x600 pixel canvas
   
-function setup() { 
-  createCanvas(windowWidth, windowHeight);
-  frameRate(6); // Set frame rate to 6 FPS
-  background(251, 176, 59);
-  angleMode(DEGREES);
-  
-  // Initialize floating short arcs
-  for (let i = 0; i < 20; i++) { // Increase to 20 arcs
-    arcs.push({
-      x: random(width),
-      y: random(-100, height), // Randomly start from top of the canvas
-      angle: random(360), // Random angle
-      length: random(10, 30), // Shorter random arc length
-      offset: random(1000) // Random offset for diversity
-    });
-    noiseOffset.push(random(1000)); // Random noise offset for each arc
-  }
-  
-  // Initialize the number of small circles
-  numDots = int((width * height) / 500);
-  initializeDots();
-}
-  
-function draw() {
-  background(251, 176, 59); // Redraw background each frame
-  drawDots(); // Draw small circles background
-  drawPalmLeavesGroup1(); // Call function to draw first group of palm leaves
-  drawPalmLeavesGroup2(); // Call function to draw second group of palm leaves
-  drawFloatingArcs(); // Call function to draw floating arcs
-}
-  
-function drawDots() {
-  noStroke(); // Remove outline
-  for (let dot of dots) {
-    fill(dot.chosenColor);
-      
-    // Update position using Perlin noise and constrain within boundaries
-    dot.x += map(noise(dot.noiseOffset), 0, 1, -2, 2);
-    dot.y += map(noise(dot.noiseOffset + 100), 0, 1, -2, 2);
-  
-    // Keep dots within canvas boundaries
-    dot.x = constrain(dot.x, dot.size / 2, width - dot.size / 2);
-    dot.y = constrain(dot.y, dot.size / 2, height - dot.size / 2);
-  
-    ellipse(dot.x, dot.y, dot.size * 0.5, dot.size * 0.5); // Shrink dot size and draw
-    dot.noiseOffset += 0.01; // Increase noise offset for smooth movement
-  }
-}
-  
-function drawPalmLeavesGroup1() {
-  let groupCount = 6; // Number of groups in the first set
-  let leafCount = 20; // Number of leaves per group
-  let angleStep = 360 / leafCount; // Rotation angle per leaf
-  
-  // Define position of each group
-  let positions = [
-    { x: width * 0.25, y: height * 0.25 },  // First group
-    { x: width * 0.75, y: height * 0.25 },  // Second group
-    { x: width * 0.25, y: height * 0.75 },  // Third group
-    { x: width * 0.75, y: height * 0.75 },  // Fourth group
-    { x: width * 0.5, y: height * 0.15 },   // Fifth group
-    { x: width * 0.5, y: height * 0.85 }    // Sixth group
-  ];
-  
-  for (let g = 0; g < groupCount; g++) {
-    push();
-    translate(positions[g].x, positions[g].y); // Move each group to designated position
-  
-    // Set random size for central sphere between 15 and 30
-    let sphereSize = random(15, 30);
-      
-    // Calculate leaf length based on central sphere size
-    // let leafLength = map(sphereSize, 15, 30, 100, 180); // Leaf length varies with sphere size
-    let leafLength = 150;
-      
-    // Calculate rotation angle, slow down speed
-    // let rotationAngle = frameCount * 0.1; // Adjust rotation speed to 0.2
-  
-    for (let i = 0; i < leafCount; i++) {
-      let angle = (i * angleStep) % 360; // Rotate leaves each frame
-      let noiseValue = noise(noiseOffset[g] + frameCount * 0.005); // Slow down noise change
-      let floatOffset = map(noiseValue, 0, 1, -5, 5); // Map noise value to float range
-      drawLeaves(angle + floatOffset, leafLength); // Pass leaf length to drawing function
+  for (let j = 250; j<width/2;j+=20){
+    let v = []; // Array to store vertices of the polygon
+    for(let i = 0; i < n; i++) {
+      // Calculate each vertex position in a circular layout
+      let a = i * (TWO_PI / n); // Angle for each vertex around the circle
+      v.push(createVector(j + cos(a) * 50, height/2 + sin(a) * 50)); // Push vertices at radius 200
     }
-      
-    // Draw central sphere
-    fill(randomColor());
-    noStroke();
-    ellipse(0, 0, sphereSize, sphereSize); // Draw central sphere
-    pop();
+    polies.push(new Poly(v)); // Create a polygon with the generated vertices
+  }
+  
+  noLoop(); // Prevent the draw function from looping
+}
+
+function draw() {
+  background(255); // Set background to white
+  strokeWeight(90);
+  // stroke('magenta');
+  stroke(255, 100, 0); // Set fill with alpha for layering
+  line(0,height/2,width/2-20,height/2);
+  
+  // Apply watercolor effect on the polygon with an orange color
+  for (const poly of polies) {
+    waterColour(poly, color(255, 100, 0));
   }
 }
+
+// Polygon class to represent a polygon with vertices and growth modifiers
+class Poly {
+  constructor(vertices) {
+    this.vertices = vertices; // Vertices of the polygon
+    let modifiers = [];
+    for(let i = 0; i < vertices.length; i++) {
+      modifiers.push(random(0.1, 0.8)); // Random modifier for vertex distortion
+    }
+    this.modifiers = modifiers; // Store the modifiers
+  }
   
-function drawLeaves(angle, leafLength) {
-  let segments = 15; // Number of segments per leaf
-  let x = 0;
-  let y = 0;
-  let px, py;
-  
-  // Thicker main stem of each leaf
-  strokeWeight(5);  // Set leaf stem line width thicker
-  // stroke(randomColor());
-  stroke(203,1,11);
-  push();
-  rotate(angle); // Rotate leaf to respective angle
-  noFill(); // Ensure stem part is not filled
-  beginShape();
+  grow() {
+    // Function to "grow" the polygon by adjusting vertices
+    let grownVerts = []; // Array to store new grown vertices
+    let grownMods = []; // Array to store new modifiers
     
-  // Draw curved part of the stem
-  for (let i = 0; i < segments; i++) {
-    px = x + map(i, 0, segments, 0, leafLength);
-    py = y + sin(i * 10) * 30; // Increase frequency and amplitude, make curvature more obvious
-    vertex(px, py);
-  }
-  endShape();
-  
-  // Ensure small circle aligns with arc end
-  // drawEndSphere(px, py); // Add irregular small sphere at leaf tip, align with line end
-  pop();
-}
-  
-// Draw irregular small circle at leaf end
-function drawEndSphere(x, y) {
-  let sphereSize = random(5, 15); // Set random size for small circle
-  
-  fill(randomColor());
-  noStroke();
-  ellipse(x, y, sphereSize, sphereSize); // Draw small circle, align with line end
-}
-  
-let floatOffset = 0; // Controls floating offset
-let floatSpeed = 0.5; // Floating speed
-let floatAmplitude = 10; // Floating amplitude
-  
-function drawPalmLeavesGroup2() {
-  let groupCount = 6; // Number of groups in the second set
-  
-  for (let g = 0; g < groupCount; g++) {
-    // Randomly generate position for each group
-    let posX = random(100, width - 100);
-    let posY = height / 2 + sin(floatOffset + g) * floatAmplitude; // Control vertical float with sine function
+    for(let i = 0; i < this.vertices.length; i++) {
+      let j = (i + 1) % this.vertices.length; // Connect to the next vertex
+      let v1 = this.vertices[i];
+      let v2 = this.vertices[j];
       
-    push();
-    translate(posX, posY); // Move each group to designated position
-  
-    let leafCount = 20;               // Number of leaves
-    let angleStep = 360 / leafCount;  // Rotation angle per leaf
-  
-    for (let i = 0; i < leafCount; i++) {
-      let angle = i * angleStep; // No need to rotate
-      drawLeaves2(angle); // Generate one leaf per angle
+      let mod = this.modifiers[i]; // Modifier for the current vertex
+      
+      // Function to slightly change the modifier
+      let chmod = m => m + (rand() - 0.5) * 0.1;
+      
+      grownVerts.push(v1); // Add the current vertex
+      grownMods.push(chmod(mod)); // Modify and add the modifier
+      
+      // Calculate and manipulate segment between vertices to create a "grown" vertex
+      let segment = p5.Vector.sub(v2, v1); // Segment vector between two vertices
+      let len = segment.mag(); // Segment length
+      segment.mult(rand()); // Randomly scale the segment
+      
+      let v = p5.Vector.add(segment, v1); // Calculate a new vertex along the segment
+      
+      // Apply a random rotation to the segment
+      segment.rotate(-PI / 2 + (rand() - 0.5) * PI / 4);
+      segment.setMag(rand() * len / 2 * mod); // Adjust segment length based on modifier
+      v.add(segment); // Apply final position adjustment for the new vertex
+      
+      grownVerts.push(v); // Add the adjusted vertex
+      grownMods.push(chmod(mod)); // Add the modified growth factor
     }
-  
-    // Draw central sphere, set random color and size
-    fill(randomColor());
-    noStroke();
-    ellipse(0, 0, random(15, 30), random(15, 30)); // Central sphere, radius between 15 and 30
-    pop();
+    return new Poly(grownVerts, grownMods); // Return a new grown polygon
   }
   
-  floatOffset += floatSpeed; // Update floating offset for continuous floating effect
-}
-  
-// Drawing function for the second group of leaves
-function drawLeaves2(angle) {
-  let segments = 12; // Number of segments per leaf
-  let leafLength = random(30, 60); // Smaller random length per leaf
-  let x = 0;
-  let y = 0;
-  let px, py;
-  
-  
-  push();
-  rotate(angle); // Rotate leaf to respective angle
-  noFill(); // Ensure stem part is not filled
-  strokeWeight(1.5);  // Set leaf line width thinner
-  stroke(randomColor());
-  
-  // Draw curved part of the stem
-  beginShape();
-  for (let i = 0; i < segments; i++) {
-    let length = map(i, 0, segments, 0, leafLength);
-    px = x + length;
-    py = y + sin(i * 10) * 15; // Increase frequency and amplitude, make curvature more obvious
-    vertex(px, py);
+  dup() {
+    // Create a duplicate of the polygon with the same vertices and modifiers
+    return new Poly(Array.from(this.vertices), Array.from(this.modifiers));
   }
-  endShape();
   
-  // Draw opposite side of the leaf
-  beginShape();
-  for (let i = 0; i < segments; i++) {
-    let length = map(i, 0, segments, 0, leafLength);
-    px = x + length;
-    py = y + sin(i * 10 + 20) * 15; // Increase angle for opposite side
-    vertex(px, py);
-  }
-  endShape();
-  
-  pop();
-}
-  
-// Generate random color
-function randomColor() {
-  let colors = [
-    color(229, 67, 121),
-    color(120, 34, 33),
-    color(203, 1, 11),
-    color(18, 12, 8),
-    color(122, 70, 118)
-  ];
-  return colors[int(random(colors.length))];
-}
-  
-// Draw floating arcs and balls
-function drawFloatingArcs() {
-  for (let i = 0; i < arcs.length; i++) {
-    let arc = arcs[i];
-    stroke(randomColor()); // Set a random color for each arc
-    strokeWeight(3); // Set the stroke width for the arc
-    noFill(); // No fill color for the arc
-  
-    push();
-    translate(arc.x, arc.y); // Move to the arc's current coordinates
-    arc.angle += 0.2; // Update angle to create floating effect
-    let length = arc.length;
-  
-    beginShape(); // Start creating a shape for the arc
-    for (let j = 0; j < 10; j++) {
-      let x = cos(arc.angle + j * 15) * length; // Calculate the X-coordinate for each point
-      let y = sin(arc.angle + j * 15) * length; // Calculate the Y-coordinate for each point
-      vertex(x, y); // Create vertices for each point on the arc
+  draw() {
+    // Draw the polygon using its vertices
+    beginShape();
+    for(let v of this.vertices) {
+      vertex(v.x, v.y); // Plot each vertex
     }
-    endShape();
+    endShape(CLOSE); // Close the shape
+  }
+}
+
+// Function to create a watercolor effect by repeatedly drawing a "grown" polygon
+function waterColour(poly, colour) {
+  fill(red(colour), green(colour), blue(colour), 255 / (numLayers * 0.8)); // Set fill with alpha for layering
+  noStroke(); // Remove outline
   
-    let ballPosX = cos(arc.angle) * length; // Calculate the X-coordinate of the floating ball
-    let ballPosY = sin(arc.angle) * length; // Calculate the Y-coordinate of the floating ball
-    drawFloatingBall(ballPosX, ballPosY); // Draw the floating ball
-    pop();
+  poly = poly.grow().grow(); // Grow the polygon twice for an initial larger size
   
-    // Update the Y position of the arc for a falling effect
-    arc.y += arcSpeed;
-  
-    // If arc goes beyond the canvas height, reset it to the top with a random X position
-    if (arc.y > height) {
-      arc.y = 0;
-      arc.x = random(width);
+  for(let i = 0; i < numLayers; i++) {
+    // Regrow the polygon at intervals for a more spread effect
+    if(i == int(numLayers / 3) || i == int(2 * numLayers / 3)) {
+      poly = poly.grow().grow(); // Add additional growth stages at specific layers
     }
-  }
+    
+    poly.grow().draw(); // Draw the grown polygon on each layer
+  }  
 }
-  
-// Add a new arc with random properties
-function addNewArc() {
-  arcs.push({
-    x: random(width), // Random X-coordinate
-    y: random(-height, 0), // Start at a random point from the top
-    angle: random(PI), // Random initial angle
-    length: random(50, 100) // Random length for the arc
-  });
+
+// Generate a random value with a distribution for smoother transitions
+function rand() {
+  return distribute(random(1)); // Apply distribution to a random number between 0 and 1
 }
-  
-// Initialize floating dots
-function initializeDots() {
-  for (let i = 0; i < numDots; i++) {
-    dots.push({
-      x: random(width), // Random X-coordinate
-      y: random(height), // Random Y-coordinate
-      size: random(5, 15), // Set dot size between 5 and 15
-      chosenColor: randomColor(), // Randomly select color
-      noiseOffset: random(1000) // Random noise offset for unique movement
-    });
-  }
-}
-  
-// Draw the floating ball at given coordinates
-function drawFloatingBall(x, y) {
-  noStroke(); // No outline for the ball
-  fill(randomColor()); // Set a random color for the ball
-  ellipse(x, y, 5, 5); // Draw the ball with a size of 5x5
-}
-  
-// Resize canvas and reinitialize arcs and dots when window is resized
-function windowResized() {
-  resizeCanvas(windowWidth, windowHeight); // Adjust canvas size
-  background(251, 176, 59); // Reset background
-  
-  // Recalculate the number of dots based on new window size
-  numDots = int((width * height) / 500);
-  initializeDots(); // Reinitialize dots with updated size
-  initializeArcs(); // Reinitialize arcs with updated size
-}
-  
-// Initialize floating dots with random positions, sizes, and colors
-function initializeDots() {
-  dots = []; // Clear existing dots
-  
-  for (let i = 0; i < numDots; i++) {
-    let size = random(5, 10); // Random size range for dots
-    let x = random(size / 2, width - size / 2); // Ensure within horizontal boundaries
-    let y = random(size / 2, height - size / 2); // Ensure within vertical boundaries
-    let chosenColor = random([color(229, 67, 121), color(120, 34, 33), color(203, 1, 11), color(18, 12, 8), color(122, 70, 118)]);
-    dots.push({ x, y, size, chosenColor, noiseOffset: random(1000) }); // Store properties
-  }
-}
-  
-// Initialize floating arcs based on window size
-function initializeArcs() {
-  arcs = []; // Clear existing arcs
-  noiseOffset = []; // Clear noise offsets
-  
-  let arcCount = int((width * height) / 8000); // Adjust arc count based on window size
-  for (let i = 0; i < arcCount; i++) {
-    arcs.push({
-      x: random(width), // Random X position
-      y: random(-100, height), // Random Y position
-      angle: random(360), // Random initial angle
-      length: random(10, 30), // Random arc length
-      offset: random(1000) // Random offset for noise
-    });
-    noiseOffset.push(random(1000)); // Store offset
-  }
-}
-  
-// Main drawing function
-function draw() {
-  background(251, 176, 59); // Set background color
-  drawDots(); // Draw dots as background
-  drawPalmLeavesGroup1(); // Draw first group of palm leaves
-  drawPalmLeavesGroup2(); // Draw second group of palm leaves
-  drawFloatingArcs(); // Draw floating arcs and balls
+
+// Adjust the distribution of random values for a smoother effect
+function distribute(x) {
+  return pow((x - 0.5) * 1.58740105, 3) + 0.5; // Distribution function
 }
